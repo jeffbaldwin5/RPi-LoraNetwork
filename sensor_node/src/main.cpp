@@ -15,7 +15,6 @@
 #define PIN_DEV0       8
 #define PIN_DEV1       9
 #define PIN_DEV2      13
-#define PIN_LED       25
 
 #define NUM_DEVICES    3
 static const uint8_t devicePins[NUM_DEVICES] = { PIN_DEV0, PIN_DEV1, PIN_DEV2 };
@@ -143,6 +142,7 @@ void initLoRa() {
 
     // Configure for receive
     radio.setDio1Action([]() { rxFlag = true; });
+    rxFlag = false;
     radio.startReceive();
     Serial.println(F("OK"));
 }
@@ -230,7 +230,8 @@ void sendAck(uint8_t ackedType, uint8_t ackedSeq, uint8_t status) {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     radio.transmit(buf, payloadLen + 1);
-    radio.startReceive();  // back to RX
+    rxFlag = false;
+    radio.startReceive();
 }
 
 void sendTelemetry() {
@@ -250,7 +251,8 @@ void sendTelemetry() {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     int state = radio.transmit(buf, payloadLen + 1);
-    radio.startReceive();  // back to RX
+    rxFlag = false;
+    radio.startReceive();
 
     if (state == RADIOLIB_ERR_NONE) {
         digitalWrite(PIN_LED, HIGH);

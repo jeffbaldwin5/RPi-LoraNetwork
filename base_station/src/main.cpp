@@ -3,9 +3,6 @@
 #include <RadioLib.h>
 #include "protocol.h"
 
-// --- Pin Definitions ---
-#define PIN_LED 25
-
 // --- LoRa (SPI1) ---
 SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY, SPI1);
 
@@ -242,6 +239,7 @@ void sendDeviceCommand(uint8_t deviceId, uint8_t state) {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     radio.transmit(buf, payloadLen + 1);
+    rxFlag = false;
     radio.startReceive();
 
     Serial.printf("{\"sent\":\"device\",\"id\":%u,\"state\":%u}\n", deviceId, state);
@@ -258,6 +256,7 @@ void sendFanCommand(uint8_t mode, uint8_t duty) {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     radio.transmit(buf, payloadLen + 1);
+    rxFlag = false;
     radio.startReceive();
 
     Serial.printf("{\"sent\":\"fan\",\"mode\":%u,\"duty\":%u}\n", mode, duty);
@@ -272,6 +271,7 @@ void sendStatusRequest() {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     radio.transmit(buf, payloadLen + 1);
+    rxFlag = false;
     radio.startReceive();
 
     Serial.println(F("{\"sent\":\"status_request\"}"));
