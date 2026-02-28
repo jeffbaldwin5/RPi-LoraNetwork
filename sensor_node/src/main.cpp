@@ -260,8 +260,8 @@ void sendTelemetry() {
         digitalWrite(PIN_LED, LOW);
     }
 
-    Serial.printf("TX telem: %umV %dmA %.1fC fan:%d%% dev:%d%d%d\n",
-                  voltage_mV, current_mA, temp_C_x10 / 10.0f,
+    Serial.printf("TX telem: %.3fV %dmA %.1fF fan:%d%% dev:%d%d%d\n",
+                  voltage_mV / 1000.0f, current_mA, temp_C_x10 / 10.0f * 9.0f / 5.0f + 32.0f,
                   fan_duty_pct,
                   device_on[0], device_on[1], device_on[2]);
 }

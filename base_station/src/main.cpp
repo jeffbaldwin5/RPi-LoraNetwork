@@ -103,12 +103,12 @@ void handleLoRaRx() {
 
             digitalWrite(PIN_LED, HIGH);
 
-            Serial.printf("{\"voltage_mV\":%u,\"current_mA\":%d,\"temp_C\":%.1f,"
+            Serial.printf("{\"voltage_V\":%.3f,\"current_mA\":%d,\"temp_F\":%.1f,"
                           "\"fan_pct\":%u,\"devices\":[%d,%d,%d],"
                           "\"rssi\":%.1f,\"snr\":%.1f}\n",
-                          tel.voltage_mV,
+                          tel.voltage_mV / 1000.0f,
                           tel.current_mA,
-                          tel.temp_C_x10 / 10.0f,
+                          tel.temp_C_x10 / 10.0f * 9.0f / 5.0f + 32.0f,
                           tel.fan_duty_pct,
                           (tel.device_states >> 0) & 1,
                           (tel.device_states >> 1) & 1,
