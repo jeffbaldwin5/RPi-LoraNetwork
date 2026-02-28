@@ -34,7 +34,12 @@ INA226_WE ina226 = INA226_WE(0x40);
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature tempSensor(&oneWire);
 
+// --- Sensor presence flags ---
+static bool hasINA226 = false;
+static bool hasDS18B20 = false;
+
 // --- State ---
+static volatile bool rxFlag = false;
 static uint8_t seqNum = 0;
 static uint16_t voltage_mV = 0;
 static int16_t  current_mA = 0;
@@ -82,8 +87,14 @@ void setup() {
     initFan();
     initLoRa();
 
+    // Send initial telemetry immediately
+    Serial.println(F("Sensor Online"));
+    readSensors();
+    updateFan();
+    sendTelemetry();
+    lastTelemetry = millis();  // start 2-minute timer from now
+
     digitalWrite(PIN_LED, LOW);
-    Serial.println(F("Sensor Node ready."));
 }
 
 void loop() {
@@ -131,12 +142,15 @@ void initLoRa() {
     }
 
     // Configure for receive
-    radio.setDio1Action([]() {});  // dummy ISR, we poll
+    radio.setDio1Action([]() { rxFlag = true; });
     radio.startReceive();
     Serial.println(F("OK"));
 }
 
 void handleLoRaRx() {
+    if (!rxFlag) return;
+    rxFlag = false;
+
     size_t len = radio.getPacketLength();
     if (len == 0) return;
 
@@ -254,44 +268,54 @@ void sendTelemetry() {
 // Sensors
 // ============================================================
 void initSensors() {
-    Serial.print(F("Initializing sensors... "));
-
     Wire.setSDA(PIN_SDA);
     Wire.setSCL(PIN_SCL);
     Wire.begin();
 
-    if (!ina226.init()) {
-        Serial.println(F("INA226 not found!"));
+    // Probe INA226 on I2C before calling init
+    Wire.beginTransmission(0x40);
+    if (Wire.endTransmission() == 0) {
+        hasINA226 = true;
+        ina226.init();
+        ina226.setResistorRange(0.01, 8.0);  // 10mOhm shunt, 8A max
+        ina226.setAverage(INA226_AVERAGE_64);
+        ina226.setConversionTime(INA226_CONV_TIME_1100);
+        Serial.println(F("INA226: OK"));
+    } else {
+        Serial.println(F("INA226: not found, skipping"));
     }
-    ina226.setResistorRange(0.01, 8.0);  // 10mOhm shunt, 8A max
-    ina226.setAverage(INA226_AVERAGE_64);
-    ina226.setConversionTime(INA226_CONV_TIME_1100);
 
     tempSensor.begin();
-    tempSensor.setResolution(12);
-    tempSensor.setWaitForConversion(false);  // non-blocking
-    tempSensor.requestTemperatures();
-    tempRequested = true;
-
-    Serial.println(F("OK"));
+    if (tempSensor.getDeviceCount() > 0) {
+        hasDS18B20 = true;
+        tempSensor.setResolution(12);
+        tempSensor.setWaitForConversion(false);
+        tempSensor.requestTemperatures();
+        tempRequested = true;
+        Serial.println(F("DS18B20: OK"));
+    } else {
+        Serial.println(F("DS18B20: not found, skipping"));
+    }
 }
 
 void readSensors() {
-    // INA226
-    float busV = ina226.getBusVoltage_V();
-    float shuntI = ina226.getCurrent_mA();
-    voltage_mV = (uint16_t)(busV * 1000.0f);
-    current_mA = (int16_t)shuntI;
-
-    // DS18B20 - read previous conversion, request new one
-    if (tempRequested && tempSensor.isConversionComplete()) {
-        float t = tempSensor.getTempCByIndex(0);
-        if (t != DEVICE_DISCONNECTED_C) {
-            temp_C_x10 = (int16_t)(t * 10.0f);
-        }
+    if (hasINA226) {
+        float busV = ina226.getBusVoltage_V();
+        float shuntI = ina226.getCurrent_mA();
+        voltage_mV = (uint16_t)(busV * 1000.0f);
+        current_mA = (int16_t)shuntI;
     }
-    tempSensor.requestTemperatures();
-    tempRequested = true;
+
+    if (hasDS18B20) {
+        if (tempRequested && tempSensor.isConversionComplete()) {
+            float t = tempSensor.getTempCByIndex(0);
+            if (t != DEVICE_DISCONNECTED_C) {
+                temp_C_x10 = (int16_t)(t * 10.0f);
+            }
+        }
+        tempSensor.requestTemperatures();
+        tempRequested = true;
+    }
 }
 
 // ============================================================

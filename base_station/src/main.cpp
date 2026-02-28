@@ -12,6 +12,7 @@ SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY, SPI1);
 // --- State ---
 static uint8_t seqNum = 0;
 static uint32_t lastTelemetryTime = 0;
+static volatile bool rxFlag = false;
 
 // --- Serial input buffer ---
 static char serialBuf[256];
@@ -65,12 +66,15 @@ void initLoRa() {
         }
     }
 
-    radio.setDio1Action([]() {});
+    radio.setDio1Action([]() { rxFlag = true; });
     radio.startReceive();
     Serial.println(F("{\"status\":\"LoRa initialized\"}"));
 }
 
 void handleLoRaRx() {
+    if (!rxFlag) return;
+    rxFlag = false;
+
     size_t len = radio.getPacketLength();
     if (len == 0) return;
 
