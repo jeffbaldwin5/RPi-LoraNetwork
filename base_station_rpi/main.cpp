@@ -159,6 +159,32 @@ void handleLoRaRx() {
             fflush(stdout);
             break;
         }
+        case MSG_TELEMETRY_EXT: {
+            if (len - 1 < sizeof(PacketHeader) + sizeof(TelemetryExtPayload)) break;
+            TelemetryExtPayload tel;
+            memcpy(&tel, buf + sizeof(PacketHeader), sizeof(tel));
+
+            printf("{\"voltage_V\":%.3f,\"current_mA\":%d,\"temp_F\":%.1f,"
+                   "\"fan_pct\":%u,\"devices\":[%d,%d,%d],"
+                   "\"humidity\":%.1f,\"sht_temp_F\":%.1f,"
+                   "\"lux\":%u,\"vbat_mV\":%u,\"rtc_epoch\":%lu,"
+                   "\"rssi\":%.1f,\"snr\":%.1f}\n",
+                   tel.voltage_mV / 1000.0f,
+                   tel.current_mA,
+                   tel.temp_C_x10 / 10.0f * 9.0f / 5.0f + 32.0f,
+                   tel.fan_duty_pct,
+                   (tel.device_states >> 0) & 1,
+                   (tel.device_states >> 1) & 1,
+                   (tel.device_states >> 2) & 1,
+                   tel.humidity_x10 / 10.0f,
+                   tel.sht_temp_C_x10 / 10.0f * 9.0f / 5.0f + 32.0f,
+                   tel.lux,
+                   tel.vbat_mV,
+                   (unsigned long)tel.rtc_epoch,
+                   rssi, snr);
+            fflush(stdout);
+            break;
+        }
         case MSG_CMD_ACK: {
             if (len - 1 < sizeof(PacketHeader) + sizeof(CmdAckPayload)) break;
             CmdAckPayload ack;

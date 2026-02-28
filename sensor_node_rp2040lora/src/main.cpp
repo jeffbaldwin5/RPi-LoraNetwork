@@ -5,6 +5,9 @@
 #include <INA226_WE.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <Adafruit_SHT4x.h>
+#include <BH1750.h>
+#include <pcf8563.h>
 #include "protocol.h"
 
 // ============================================================
@@ -28,7 +31,9 @@
 #define PIN_FAN_PWM    7
 #define PIN_DEV0       8
 #define PIN_DEV1       9
-#define PIN_DEV2      10
+#define PIN_DEV2      11
+#define PIN_SENSOR_EN 10
+#define PIN_VBAT_ADC   1
 
 #define NUM_DEVICES    3
 static const uint8_t devicePins[NUM_DEVICES] = { PIN_DEV0, PIN_DEV1, PIN_DEV2 };
@@ -46,10 +51,16 @@ SX1262 radio = new Module(WS_LORA_CS, WS_LORA_DIO1, WS_LORA_RST, WS_LORA_BUSY, S
 INA226_WE ina226 = INA226_WE(0x40);
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature tempSensor(&oneWire);
+Adafruit_SHT4x sht40;
+BH1750 bh1750;
+PCF8563_Class rtc;
 
 // --- Sensor presence flags ---
 static bool hasINA226 = false;
 static bool hasDS18B20 = false;
+static bool hasSHT40 = false;
+static bool hasBH1750 = false;
+static bool hasPCF8563 = false;
 
 // --- State ---
 static volatile bool rxFlag = false;
@@ -58,6 +69,10 @@ static uint16_t voltage_mV = 0;
 static int16_t  current_mA = 0;
 static int16_t  temp_C_x10 = 250;  // default 25.0C
 static uint8_t  fan_duty_pct = 0;
+static uint16_t humidity_x10 = 0;
+static int16_t  sht_temp_C_x10 = 0;
+static uint16_t lux = 0;
+static uint16_t vbat_mV = 0;
 static bool     fan_auto = true;
 static uint8_t  manual_fan_duty = 0;
 static bool     device_on[NUM_DEVICES] = { false, false, false };
@@ -77,7 +92,7 @@ void initFan();
 void initDeviceGPIO();
 void readSensors();
 void updateFan();
-void sendTelemetry();
+void sendTelemetryExt();
 void handleLoRaRx();
 void executeCommand(const uint8_t* packet, size_t len);
 void setDevice(uint8_t id, bool on);
@@ -121,7 +136,7 @@ void setup() {
     Serial.println(F("Sensor Online"));
     readSensors();
     updateFan();
-    sendTelemetry();
+    sendTelemetryExt();
     lastTelemetry = millis();
 
     digitalWrite(PIN_LED, LOW);
@@ -140,7 +155,7 @@ void loop() {
     // Telemetry every 2 minutes
     if (now - lastTelemetry >= TELEMETRY_INTERVAL_MS) {
         lastTelemetry = now;
-        sendTelemetry();
+        sendTelemetryExt();
     }
 
     // Check for incoming LoRa commands
@@ -244,7 +259,7 @@ void executeCommand(const uint8_t* packet, size_t len) {
             break;
         }
         case MSG_CMD_REQ_STATUS: {
-            sendTelemetry();
+            sendTelemetryExt();
             sendAck(hdr.msgType, hdr.seqNum, 0);
             Serial.println(F("CMD: status request"));
             break;
@@ -271,15 +286,35 @@ void sendAck(uint8_t ackedType, uint8_t ackedSeq, uint8_t status) {
     radio.startReceive();
 }
 
-void sendTelemetry() {
-    uint8_t buf[sizeof(PacketHeader) + sizeof(TelemetryPayload) + 1];
-    PacketHeader hdr = { MSG_TELEMETRY, seqNum++ };
-    TelemetryPayload tel = {
+void sendTelemetryExt() {
+    uint8_t buf[sizeof(PacketHeader) + sizeof(TelemetryExtPayload) + 1];
+    PacketHeader hdr = { MSG_TELEMETRY_EXT, seqNum++ };
+
+    uint32_t epoch = 0;
+    if (hasPCF8563) {
+        RTC_Date now = rtc.getDateTime();
+        struct tm t;
+        t.tm_year = now.year - 1900;
+        t.tm_mon  = now.month - 1;
+        t.tm_mday = now.day;
+        t.tm_hour = now.hour;
+        t.tm_min  = now.minute;
+        t.tm_sec  = now.second;
+        t.tm_isdst = 0;
+        epoch = (uint32_t)mktime(&t);
+    }
+
+    TelemetryExtPayload tel = {
         voltage_mV,
         current_mA,
         temp_C_x10,
         fan_duty_pct,
-        buildDeviceStateBitmask()
+        buildDeviceStateBitmask(),
+        humidity_x10,
+        sht_temp_C_x10,
+        lux,
+        vbat_mV,
+        epoch
     };
 
     memcpy(buf, &hdr, sizeof(hdr));
@@ -299,16 +334,23 @@ void sendTelemetry() {
         digitalWrite(PIN_LED, LOW);
     }
 
-    Serial.printf("TX telem: %.3fV %dmA %.1fF fan:%d%% dev:%d%d%d\n",
+    Serial.printf("TX telem: %.3fV %dmA %.1fF fan:%d%% dev:%d%d%d hum:%.1f%% sht:%.1fC lux:%u vbat:%umV\n",
                   voltage_mV / 1000.0f, current_mA, temp_C_x10 / 10.0f * 9.0f / 5.0f + 32.0f,
                   fan_duty_pct,
-                  device_on[0], device_on[1], device_on[2]);
+                  device_on[0], device_on[1], device_on[2],
+                  humidity_x10 / 10.0f, sht_temp_C_x10 / 10.0f,
+                  lux, vbat_mV);
 }
 
 // ============================================================
 // Sensors
 // ============================================================
 void initSensors() {
+    // Enable logger hat sensors via GP10
+    pinMode(PIN_SENSOR_EN, OUTPUT);
+    digitalWrite(PIN_SENSOR_EN, HIGH);
+    delay(50);  // let sensors power up
+
     Wire.setSDA(PIN_SDA);
     Wire.setSCL(PIN_SCL);
     Wire.begin();
@@ -337,6 +379,38 @@ void initSensors() {
     } else {
         Serial.println(F("DS18B20: not found, skipping"));
     }
+
+    // --- Logger hat sensors ---
+    // SHT40 (0x44)
+    if (sht40.begin(&Wire)) {
+        hasSHT40 = true;
+        sht40.setPrecision(SHT4X_HIGH_PRECISION);
+        Serial.println(F("SHT40: OK"));
+    } else {
+        Serial.println(F("SHT40: not found, skipping"));
+    }
+
+    // BH1750 (0x23)
+    if (bh1750.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23, &Wire)) {
+        hasBH1750 = true;
+        Serial.println(F("BH1750: OK"));
+    } else {
+        Serial.println(F("BH1750: not found, skipping"));
+    }
+
+    // PCF8563 (0x51)
+    Wire.beginTransmission(0x51);
+    if (Wire.endTransmission() == 0) {
+        rtc.begin(Wire);
+        hasPCF8563 = true;
+        Serial.println(F("PCF8563: OK"));
+    } else {
+        Serial.println(F("PCF8563: not found, skipping"));
+    }
+
+    // VBAT ADC on GP1 (ADC channel 1, voltage divider VBAT/2)
+    analogReadResolution(12);
+    pinMode(PIN_VBAT_ADC, INPUT);
 }
 
 void readSensors() {
@@ -357,6 +431,26 @@ void readSensors() {
         tempSensor.requestTemperatures();
         tempRequested = true;
     }
+
+    // --- Logger hat sensors ---
+    if (hasSHT40) {
+        sensors_event_t humEv, tempEv;
+        if (sht40.getEvent(&humEv, &tempEv)) {
+            humidity_x10 = (uint16_t)(humEv.relative_humidity * 10.0f);
+            sht_temp_C_x10 = (int16_t)(tempEv.temperature * 10.0f);
+        }
+    }
+
+    if (hasBH1750) {
+        float l = bh1750.readLightLevel();
+        if (l >= 0) {
+            lux = (uint16_t)l;
+        }
+    }
+
+    // VBAT: GP1 through voltage divider (VBAT/2), 3.3V ref, 12-bit ADC
+    uint16_t raw = analogRead(PIN_VBAT_ADC);
+    vbat_mV = (uint16_t)((raw * 3300UL * 2) / 4095);
 }
 
 // ============================================================

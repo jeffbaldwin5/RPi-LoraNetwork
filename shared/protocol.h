@@ -27,6 +27,7 @@
 #define MSG_CMD_SET_FAN      0x03
 #define MSG_CMD_ACK          0x04
 #define MSG_CMD_REQ_STATUS   0x05
+#define MSG_TELEMETRY_EXT    0x06
 
 // --- Packet Header ---
 struct PacketHeader {
@@ -41,6 +42,21 @@ struct TelemetryPayload {
     int16_t  temp_C_x10;    // temperature * 10
     uint8_t  fan_duty_pct;
     uint8_t  device_states;  // bitmask: bit0=dev0, bit1=dev1, bit2=dev2
+} __attribute__((packed));
+
+// --- Extended Telemetry Payload (sensor -> base, RP2040-LoRa with logger hat) ---
+struct TelemetryExtPayload {
+    uint16_t voltage_mV;
+    int16_t  current_mA;
+    int16_t  temp_C_x10;       // DS18B20
+    uint8_t  fan_duty_pct;
+    uint8_t  device_states;    // bitmask: bit0=dev0, bit1=dev1, bit2=dev2
+    // --- logger hat fields ---
+    uint16_t humidity_x10;     // SHT40: RH% * 10
+    int16_t  sht_temp_C_x10;   // SHT40: temp * 10
+    uint16_t lux;              // BH1750
+    uint16_t vbat_mV;          // VBAT/2 * 2, in millivolts
+    uint32_t rtc_epoch;        // PCF8563: unix timestamp
 } __attribute__((packed));
 
 // --- Command: Set Device (base -> sensor) ---
