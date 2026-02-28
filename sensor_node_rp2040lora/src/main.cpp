@@ -458,7 +458,7 @@ void readSensors() {
 // ============================================================
 void initFan() {
     pinMode(PIN_FAN_PWM, OUTPUT);
-    analogWriteFreq(25000);  // 25kHz for 4-pin fans
+    analogWriteFreq(1000);   // 1kHz for 2-wire fan via MOSFET
     analogWriteRange(255);
     analogWrite(PIN_FAN_PWM, 0);
     Serial.println(F("Fan PWM initialized."));
