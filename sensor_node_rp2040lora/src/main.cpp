@@ -7,26 +7,40 @@
 #include <DallasTemperature.h>
 #include "protocol.h"
 
-// --- Pin Definitions ---
+// ============================================================
+// Waveshare RP2040-LoRa SX1262 pin mapping
+// ============================================================
+#define WS_LORA_MOSI   15
+#define WS_LORA_MISO   24
+#define WS_LORA_SCK    14
+#define WS_LORA_CS     13
+#define WS_LORA_RST    23
+#define WS_LORA_BUSY   18
+#define WS_LORA_DIO1   16
+#define WS_LORA_ANT_SW 17  // Antenna switch: LOW=TX, HIGH=RX/idle
+
+// --- Peripheral Pin Definitions ---
+// These use the remaining GPIOs on the RP2040-LoRa board.
+// Adjust as needed for your wiring.
 #define PIN_SDA        4
 #define PIN_SCL        5
 #define PIN_ONEWIRE    6
 #define PIN_FAN_PWM    7
 #define PIN_DEV0       8
 #define PIN_DEV1       9
-#define PIN_DEV2      13
+#define PIN_DEV2      10
 
 #define NUM_DEVICES    3
 static const uint8_t devicePins[NUM_DEVICES] = { PIN_DEV0, PIN_DEV1, PIN_DEV2 };
 
 // --- Timing ---
-#define SENSOR_INTERVAL_MS   2000
+#define SENSOR_INTERVAL_MS    2000
 #define TELEMETRY_INTERVAL_MS 120000
-#define RESET_DELAY_MS       3000
+#define RESET_DELAY_MS        3000
 
 // --- LoRa (SPI1) ---
-// Use SPI1 with Pico-LoRa-SX1262 pinout
-SX1262 radio = new Module(LORA_CS, LORA_DIO1, LORA_RST, LORA_BUSY, SPI1);
+// RP2040-LoRa uses SPI1 for the onboard SX1262
+SX1262 radio = new Module(WS_LORA_CS, WS_LORA_DIO1, WS_LORA_RST, WS_LORA_BUSY, SPI1);
 
 // --- Sensors ---
 INA226_WE ina226 = INA226_WE(0x40);
@@ -71,15 +85,32 @@ void startResetCycle(uint8_t id);
 void processResetCycles();
 void sendAck(uint8_t ackedType, uint8_t ackedSeq, uint8_t status);
 uint8_t buildDeviceStateBitmask();
+void setAntennaTx();
+void setAntennaRx();
+
+// ============================================================
+// Antenna switch helpers
+// ============================================================
+void setAntennaTx() {
+    digitalWrite(WS_LORA_ANT_SW, LOW);
+}
+
+void setAntennaRx() {
+    digitalWrite(WS_LORA_ANT_SW, HIGH);
+}
 
 // ============================================================
 void setup() {
     Serial.begin(115200);
     delay(1000);
-    Serial.println(F("RP2350 Sensor Node starting..."));
+    Serial.println(F("RP2040-LoRa Sensor Node starting..."));
 
     pinMode(PIN_LED, OUTPUT);
     digitalWrite(PIN_LED, HIGH);
+
+    // Initialize antenna switch to RX mode
+    pinMode(WS_LORA_ANT_SW, OUTPUT);
+    setAntennaRx();
 
     initDeviceGPIO();
     initSensors();
@@ -91,7 +122,7 @@ void setup() {
     readSensors();
     updateFan();
     sendTelemetry();
-    lastTelemetry = millis();  // start 2-minute timer from now
+    lastTelemetry = millis();
 
     digitalWrite(PIN_LED, LOW);
 }
@@ -106,7 +137,7 @@ void loop() {
         updateFan();
     }
 
-    // Telemetry every 10s
+    // Telemetry every 2 minutes
     if (now - lastTelemetry >= TELEMETRY_INTERVAL_MS) {
         lastTelemetry = now;
         sendTelemetry();
@@ -124,9 +155,9 @@ void loop() {
 // ============================================================
 void initLoRa() {
     Serial.print(F("Initializing LoRa... "));
-    SPI1.setRX(LORA_MISO);
-    SPI1.setTX(LORA_MOSI);
-    SPI1.setSCK(LORA_SCK);
+    SPI1.setRX(WS_LORA_MISO);
+    SPI1.setTX(WS_LORA_MOSI);
+    SPI1.setSCK(WS_LORA_SCK);
     SPI1.begin();
 
     int state = radio.begin(LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING,
@@ -145,6 +176,7 @@ void initLoRa() {
     // Configure for receive
     radio.setDio1Action([]() { rxFlag = true; });
     rxFlag = false;
+    setAntennaRx();
     radio.startReceive();
     Serial.println(F("OK"));
 }
@@ -158,9 +190,10 @@ void handleLoRaRx() {
 
     uint8_t buf[MAX_PACKET_SIZE];
     int state = radio.readData(buf, len);
-    radio.startReceive();  // re-arm
+    setAntennaRx();
+    radio.startReceive();
 
-    if (state != RADIOLIB_ERR_NONE || len < 3) return;  // header(2) + crc(1) minimum
+    if (state != RADIOLIB_ERR_NONE || len < 3) return;
 
     // Verify CRC
     uint8_t rxCrc = buf[len - 1];
@@ -170,7 +203,7 @@ void handleLoRaRx() {
         return;
     }
 
-    executeCommand(buf, len - 1);  // pass without CRC byte
+    executeCommand(buf, len - 1);
 }
 
 void executeCommand(const uint8_t* packet, size_t len) {
@@ -231,7 +264,9 @@ void sendAck(uint8_t ackedType, uint8_t ackedSeq, uint8_t status) {
     size_t payloadLen = sizeof(hdr) + sizeof(ack);
     buf[payloadLen] = crc8(buf, payloadLen);
 
+    setAntennaTx();
     radio.transmit(buf, payloadLen + 1);
+    setAntennaRx();
     rxFlag = false;
     radio.startReceive();
 }
@@ -252,7 +287,9 @@ void sendTelemetry() {
     size_t payloadLen = sizeof(hdr) + sizeof(tel);
     buf[payloadLen] = crc8(buf, payloadLen);
 
+    setAntennaTx();
     int state = radio.transmit(buf, payloadLen + 1);
+    setAntennaRx();
     rxFlag = false;
     radio.startReceive();
 
@@ -340,9 +377,9 @@ void updateFan() {
         if (tempC < 30.0f) {
             duty = 0;
         } else if (tempC < 40.0f) {
-            duty = 25 + (uint8_t)((tempC - 30.0f) / 10.0f * 50.0f);  // 25-75%
+            duty = 25 + (uint8_t)((tempC - 30.0f) / 10.0f * 50.0f);
         } else if (tempC < 50.0f) {
-            duty = 75 + (uint8_t)((tempC - 40.0f) / 10.0f * 25.0f);  // 75-100%
+            duty = 75 + (uint8_t)((tempC - 40.0f) / 10.0f * 25.0f);
         } else {
             duty = 100;
         }

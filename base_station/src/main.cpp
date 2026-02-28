@@ -27,7 +27,7 @@ void sendStatusRequest();
 // ============================================================
 void setup() {
     Serial.begin(115200);
-    delay(1000);
+    delay(2000);
     Serial.println(F("{\"status\":\"Base station starting...\"}"));
 
     pinMode(PIN_LED, OUTPUT);
@@ -62,6 +62,8 @@ void initLoRa() {
             delay(200);
         }
     }
+
+    radio.setPreambleLength(LORA_PREAMBLE_LEN);
 
     radio.setDio1Action([]() { rxFlag = true; });
     radio.startReceive();

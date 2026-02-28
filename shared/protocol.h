@@ -4,15 +4,16 @@
 #include <stdint.h>
 
 // --- LoRa Configuration ---
-#define LORA_FREQUENCY      915.0   // MHz
+#define LORA_FREQUENCY      925.0   // MHz
 #define LORA_BANDWIDTH      125.0   // kHz
-#define LORA_SPREADING      9
+#define LORA_SPREADING      10
 #define LORA_CODING_RATE    7
 #define LORA_SYNC_WORD      0x34
-#define LORA_TX_POWER       17      // dBm
+#define LORA_TX_POWER       17     // dBm
+#define LORA_PREAMBLE_LEN   12
 
 // --- SX1262 Pin Definitions (Pico-LoRa-SX1262 on SPI1) ---
-#define LORA_SCK   10
+#define LORA_SCK   10  
 #define LORA_MOSI  11
 #define LORA_MISO  12
 #define LORA_CS     3
