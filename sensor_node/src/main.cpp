@@ -22,7 +22,7 @@ static const uint8_t devicePins[NUM_DEVICES] = { PIN_DEV0, PIN_DEV1, PIN_DEV2 };
 
 // --- Timing ---
 #define SENSOR_INTERVAL_MS   2000
-#define TELEMETRY_INTERVAL_MS 10000
+#define TELEMETRY_INTERVAL_MS 120000
 #define RESET_DELAY_MS       3000
 
 // --- LoRa (SPI1) ---
