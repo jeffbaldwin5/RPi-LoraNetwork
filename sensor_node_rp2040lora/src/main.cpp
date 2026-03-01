@@ -117,7 +117,7 @@ void setAntennaRx() {
 // ============================================================
 void setup() {
     Serial.begin(115200);
-    delay(1000);
+    delay(3000);
     Serial.println(F("RP2040-LoRa Sensor Node starting..."));
 
     pinMode(PIN_LED, OUTPUT);
@@ -349,7 +349,7 @@ void initSensors() {
     // Enable logger hat sensors via GP10
     pinMode(PIN_SENSOR_EN, OUTPUT);
     digitalWrite(PIN_SENSOR_EN, HIGH);
-    delay(50);  // let sensors power up
+    delay(250);  // let sensors power up (BH1750 needs ~180ms)
 
     Wire.setSDA(PIN_SDA);
     Wire.setSCL(PIN_SCL);

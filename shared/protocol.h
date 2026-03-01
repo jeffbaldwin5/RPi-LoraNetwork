@@ -9,7 +9,7 @@
 #define LORA_SPREADING      10
 #define LORA_CODING_RATE    7
 #define LORA_SYNC_WORD      0x34
-#define LORA_TX_POWER       17     // dBm
+#define LORA_TX_POWER       0    // dBm
 #define LORA_PREAMBLE_LEN   12
 
 // --- SX1262 Pin Definitions (Pico-LoRa-SX1262 on SPI1) ---
