@@ -33,7 +33,7 @@
 #define PIN_DEV1       9
 #define PIN_DEV2      11
 #define PIN_SENSOR_EN 10
-#define PIN_VBAT_ADC   1
+#define PIN_VBAT_ADC  28
 
 #define NUM_DEVICES    3
 static const uint8_t devicePins[NUM_DEVICES] = { PIN_DEV0, PIN_DEV1, PIN_DEV2 };
