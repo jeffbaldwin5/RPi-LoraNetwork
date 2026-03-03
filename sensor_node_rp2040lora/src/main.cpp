@@ -473,13 +473,10 @@ void readSensors() {
         }
     }
 
-    // VBAT: GP28 through voltage divider, 3.3V ref, 12-bit ADC
-    // End-to-end calibration: raw from voltage devider = 1105 / 4150mV actual  (4.15V supply reading)
-    // End-to-end calibration: raw from voltage devider = 2975 / 11960mV actual (11.96V supply reading)
-    // vbat_mV = (uint16_t)((raw * 4150UL) / 1105);
-    // End-to-end calibration: raw 2975 = 11960mV actual
+    // VBAT: GP28 through ext 47k/7k pot divider, 3.3V ref, 12-bit ADC
+    // Divider ratio: (47k+7k)/7k = 7.714, full scale 25457mV
     uint16_t raw = analogRead(PIN_VBAT_ADC);
-    vbat_mV = (uint16_t)((raw * 11960UL) / 2975);
+    vbat_mV = (uint16_t)((raw * 25457UL) / 4095);
 
     if (debugOutput) {
         Serial.printf("sensors: hum:%.1f%% sht:%.1fC lux:%u vbat:%umV (raw:%u)\n",
@@ -529,7 +526,8 @@ void updateFan() {
 void initDeviceGPIO() {
     for (uint8_t i = 0; i < NUM_DEVICES; i++) {
         pinMode(devicePins[i], OUTPUT);
-        digitalWrite(devicePins[i], LOW);
+        digitalWrite(devicePins[i], HIGH);  // idle HIGH (active-low reset lines)
+        device_on[i] = true;
     }
     Serial.println(F("Device GPIOs initialized."));
 }
@@ -538,7 +536,7 @@ void setDevice(uint8_t id, bool on) {
     if (id >= NUM_DEVICES) return;
     device_on[id] = on;
     resetActive[id] = false;
-    digitalWrite(devicePins[id], on ? HIGH : LOW);
+    digitalWrite(devicePins[id], on ? HIGH : LOW);  // HIGH=running, LOW=held in reset
 }
 
 void startResetCycle(uint8_t id) {
