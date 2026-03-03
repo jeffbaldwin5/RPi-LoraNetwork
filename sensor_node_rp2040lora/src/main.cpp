@@ -84,6 +84,11 @@ static uint32_t resetOffTime[NUM_DEVICES] = { 0, 0, 0 };
 static uint32_t lastSensorRead = 0;
 static uint32_t lastTelemetry = 0;
 static bool     tempRequested = false;
+static bool     debugOutput = false;
+
+// --- Serial input buffer ---
+static char serialBuf[64];
+static size_t serialBufPos = 0;
 
 // --- Forward declarations ---
 void initLoRa();
@@ -102,6 +107,7 @@ void sendAck(uint8_t ackedType, uint8_t ackedSeq, uint8_t status);
 uint8_t buildDeviceStateBitmask();
 void setAntennaTx();
 void setAntennaRx();
+void handleSerialInput();
 
 // ============================================================
 // Antenna switch helpers
@@ -160,6 +166,9 @@ void loop() {
 
     // Check for incoming LoRa commands
     handleLoRaRx();
+
+    // Check for serial commands
+    handleSerialInput();
 
     // Process any active reset cycles
     processResetCycles();
@@ -472,8 +481,10 @@ void readSensors() {
     uint16_t raw = analogRead(PIN_VBAT_ADC);
     vbat_mV = (uint16_t)((raw * 11960UL) / 2975);
 
-    Serial.printf("sensors: hum:%.1f%% sht:%.1fC lux:%u vbat:%umV (raw:%u)\n",
-                  humidity_x10 / 10.0f, sht_temp_C_x10 / 10.0f, lux, vbat_mV, raw);
+    if (debugOutput) {
+        Serial.printf("sensors: hum:%.1f%% sht:%.1fC lux:%u vbat:%umV (raw:%u)\n",
+                      humidity_x10 / 10.0f, sht_temp_C_x10 / 10.0f, lux, vbat_mV, raw);
+    }
 }
 
 // ============================================================
@@ -557,4 +568,35 @@ uint8_t buildDeviceStateBitmask() {
         if (device_on[i]) mask |= (1 << i);
     }
     return mask;
+}
+
+// ============================================================
+// Serial Command Input
+// ============================================================
+void handleSerialInput() {
+    while (Serial.available()) {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r') {
+            if (serialBufPos > 0) {
+                serialBuf[serialBufPos] = '\0';
+                if (strcmp(serialBuf, "debug on") == 0) {
+                    debugOutput = true;
+                    Serial.println(F("Debug output enabled"));
+                } else if (strcmp(serialBuf, "debug off") == 0) {
+                    debugOutput = false;
+                    Serial.println(F("Debug output disabled"));
+                } else if (strcmp(serialBuf, "status") == 0) {
+                    Serial.printf("hum:%.1f%% sht:%.1fC lux:%u vbat:%umV fan:%u%% dev:%d%d%d debug:%s\n",
+                                  humidity_x10 / 10.0f, sht_temp_C_x10 / 10.0f, lux, vbat_mV,
+                                  fan_duty_pct, device_on[0], device_on[1], device_on[2],
+                                  debugOutput ? "on" : "off");
+                } else {
+                    Serial.println(F("Commands: debug on | debug off | status"));
+                }
+                serialBufPos = 0;
+            }
+        } else if (serialBufPos < sizeof(serialBuf) - 1) {
+            serialBuf[serialBufPos++] = c;
+        }
+    }
 }
