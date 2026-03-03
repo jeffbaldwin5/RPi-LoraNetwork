@@ -264,6 +264,22 @@ void executeCommand(const uint8_t* packet, size_t len) {
             Serial.println(F("CMD: status request"));
             break;
         }
+        case MSG_CMD_SET_RTC: {
+            if (len < sizeof(PacketHeader) + sizeof(CmdSetRtcPayload)) break;
+            if (!hasPCF8563) {
+                sendAck(hdr.msgType, hdr.seqNum, 1);
+                break;
+            }
+            CmdSetRtcPayload cmd;
+            memcpy(&cmd, packet + sizeof(PacketHeader), sizeof(cmd));
+            time_t t = (time_t)cmd.epoch;
+            struct tm* tm = gmtime(&t);
+            rtc.setDateTime(tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+                            tm->tm_hour, tm->tm_min, tm->tm_sec);
+            sendAck(hdr.msgType, hdr.seqNum, 0);
+            Serial.printf("CMD: RTC set to %lu\n", (unsigned long)cmd.epoch);
+            break;
+        }
         default:
             break;
     }
@@ -448,9 +464,16 @@ void readSensors() {
         }
     }
 
-    // VBAT: GP1 through voltage divider (VBAT/2), 3.3V ref, 12-bit ADC
+    // VBAT: GP28 through voltage divider, 3.3V ref, 12-bit ADC
+    // End-to-end calibration: raw from voltage devider = 1105 / 4150mV actual  (4.15V supply reading)
+    // End-to-end calibration: raw from voltage devider = 2975 / 11960mV actual (11.96V supply reading)
+    // vbat_mV = (uint16_t)((raw * 4150UL) / 1105);
+    // End-to-end calibration: raw 2975 = 11960mV actual
     uint16_t raw = analogRead(PIN_VBAT_ADC);
-    vbat_mV = (uint16_t)((raw * 3300UL * 2) / 4095);
+    vbat_mV = (uint16_t)((raw * 11960UL) / 2975);
+
+    Serial.printf("sensors: hum:%.1f%% sht:%.1fC lux:%u vbat:%umV (raw:%u)\n",
+                  humidity_x10 / 10.0f, sht_temp_C_x10 / 10.0f, lux, vbat_mV, raw);
 }
 
 // ============================================================
@@ -467,15 +490,19 @@ void initFan() {
 void updateFan() {
     uint8_t duty;
     if (fan_auto) {
-        float tempC = temp_C_x10 / 10.0f;
-        if (tempC < 30.0f) {
+        if (vbat_mV > 0 && vbat_mV < 12600) {
             duty = 0;
-        } else if (tempC < 40.0f) {
-            duty = 25 + (uint8_t)((tempC - 30.0f) / 10.0f * 50.0f);
-        } else if (tempC < 50.0f) {
-            duty = 75 + (uint8_t)((tempC - 40.0f) / 10.0f * 25.0f);
         } else {
-            duty = 100;
+            float tempC = (hasSHT40 ? sht_temp_C_x10 : temp_C_x10) / 10.0f;
+            if (tempC < 30.0f) {
+                duty = 0;
+            } else if (tempC < 40.0f) {
+                duty = 25 + (uint8_t)((tempC - 30.0f) / 10.0f * 50.0f);
+            } else if (tempC < 50.0f) {
+                duty = 75 + (uint8_t)((tempC - 40.0f) / 10.0f * 25.0f);
+            } else {
+                duty = 100;
+            }
         }
     } else {
         duty = manual_fan_duty;

@@ -40,6 +40,7 @@ void processCommand(const char* json);
 void sendDeviceCommand(uint8_t deviceId, uint8_t state);
 void sendFanCommand(uint8_t mode, uint8_t duty);
 void sendStatusRequest();
+void sendRtcCommand(uint32_t epoch);
 
 // --- DIO1 ISR callback ---
 static void dio1ISR(void) {
@@ -255,6 +256,15 @@ void processCommand(const char* json) {
             sendFanCommand(1, (uint8_t)duty);
         }
 
+    } else if (strcmp(cmd, "rtc") == 0) {
+        int epoch = 0;
+        if (!findJsonInt(json, "epoch", &epoch)) {
+            printf("{\"error\":\"rtc cmd requires epoch\"}\n");
+            fflush(stdout);
+            return;
+        }
+        sendRtcCommand((uint32_t)epoch);
+
     } else if (strcmp(cmd, "status") == 0) {
         sendStatusRequest();
 
@@ -316,6 +326,24 @@ void sendStatusRequest() {
     radio.startReceive();
 
     printf("{\"sent\":\"status_request\"}\n");
+    fflush(stdout);
+}
+
+void sendRtcCommand(uint32_t epoch) {
+    uint8_t buf[sizeof(PacketHeader) + sizeof(CmdSetRtcPayload) + 1];
+    PacketHeader hdr = { MSG_CMD_SET_RTC, seqNum++ };
+    CmdSetRtcPayload cmd = { epoch };
+
+    memcpy(buf, &hdr, sizeof(hdr));
+    memcpy(buf + sizeof(hdr), &cmd, sizeof(cmd));
+    size_t payloadLen = sizeof(hdr) + sizeof(cmd);
+    buf[payloadLen] = crc8(buf, payloadLen);
+
+    radio.transmit(buf, payloadLen + 1);
+    rxFlag = false;
+    radio.startReceive();
+
+    printf("{\"sent\":\"rtc\",\"epoch\":%lu}\n", (unsigned long)epoch);
     fflush(stdout);
 }
 

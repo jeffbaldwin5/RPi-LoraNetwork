@@ -28,6 +28,7 @@
 #define MSG_CMD_ACK          0x04
 #define MSG_CMD_REQ_STATUS   0x05
 #define MSG_TELEMETRY_EXT    0x06
+#define MSG_CMD_SET_RTC      0x07
 
 // --- Packet Header ---
 struct PacketHeader {
@@ -76,6 +77,11 @@ struct CmdAckPayload {
     uint8_t ackedMsgType;
     uint8_t ackedSeqNum;
     uint8_t status;  // 0=ok, 1=error
+} __attribute__((packed));
+
+// --- Command: Set RTC (base -> sensor) ---
+struct CmdSetRtcPayload {
+    uint32_t epoch;  // unix timestamp
 } __attribute__((packed));
 
 // --- CRC8 (Dallas/Maxim) ---
