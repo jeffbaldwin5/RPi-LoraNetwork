@@ -214,8 +214,8 @@ class PiHal : public RadioLibHal {
         return;
       }
 
-      uint8_t mode = SPI_MODE_0 | SPI_NO_CS;
-      if(ioctl(_spiFd, SPI_IOC_WR_MODE, &mode) < 0) {
+      uint32_t mode32 = SPI_MODE_0 | SPI_NO_CS;
+      if(ioctl(_spiFd, SPI_IOC_WR_MODE32, &mode32) < 0) {
         fprintf(stderr, "Could not set SPI mode: %s\n", strerror(errno));
       }
 
