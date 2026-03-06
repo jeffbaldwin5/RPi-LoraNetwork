@@ -16,8 +16,8 @@
 #define RPI_DIO1_GPIO    22
 #define RPI_RST_GPIO     17
 #define RPI_BUSY_GPIO    27
-#define RPI_TX_POWER     18      // dBm (Zebra HAT 1W, matches pymc_repeater config)
-#define RPI_PREAMBLE_LEN 17      // Zebra HAT preamble
+#define RPI_TX_POWER     0       // dBm (match Pico base station for debugging)
+#define RPI_PREAMBLE_LEN 8       // match Pico base station default
 
 // --- HAL & Radio ---
 // PiHal(spiChannel, spiSpeed, spiDevice, gpioDevice)
@@ -96,6 +96,13 @@ void initLoRa() {
         fprintf(stderr, "{\"error\":\"LoRa init failed, code %d\"}\n", state);
         exit(1);
     }
+
+    // Print radio config for debugging
+    printf("{\"init_ok\":true,\"freq_MHz\":%.1f,\"bw_kHz\":%.1f,\"sf\":%d,\"cr\":%d,"
+           "\"sync\":\"0x%02X\",\"pwr_dBm\":%d,\"preamble\":%d,\"tcxo_V\":%.1f}\n",
+           LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING, LORA_CODING_RATE,
+           LORA_SYNC_WORD, RPI_TX_POWER, RPI_PREAMBLE_LEN, 1.6);
+    fflush(stdout);
 
     radio.setDio1Action(dio1ISR);
     radio.startReceive();
@@ -267,6 +274,15 @@ void processCommand(const char* json) {
 // ============================================================
 // Command Transmission
 // ============================================================
+static void hexDump(const char* label, const uint8_t* data, size_t len) {
+    printf("{\"hex_dump\":\"%s\",\"len\":%zu,\"bytes\":\"", label, len);
+    for (size_t i = 0; i < len; i++) {
+        printf("%02X", data[i]);
+    }
+    printf("\"}\n");
+    fflush(stdout);
+}
+
 void sendDeviceCommand(uint8_t deviceId, uint8_t state) {
     uint8_t buf[sizeof(PacketHeader) + sizeof(CmdSetDevicePayload) + 1];
     PacketHeader hdr = { MSG_CMD_SET_DEVICE, seqNum++ };
@@ -277,6 +293,7 @@ void sendDeviceCommand(uint8_t deviceId, uint8_t state) {
     size_t payloadLen = sizeof(hdr) + sizeof(cmd);
     buf[payloadLen] = crc8(buf, payloadLen);
 
+    hexDump("tx_device", buf, payloadLen + 1);
     int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
