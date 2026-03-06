@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define RADIOLIB_BUILD_ARDUINO 0
 #include <RadioLib.h>
 #include <hal/RPi/PiHal.h>
 
