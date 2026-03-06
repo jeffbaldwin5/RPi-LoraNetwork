@@ -277,11 +277,11 @@ void sendDeviceCommand(uint8_t deviceId, uint8_t state) {
     size_t payloadLen = sizeof(hdr) + sizeof(cmd);
     buf[payloadLen] = crc8(buf, payloadLen);
 
-    radio.transmit(buf, payloadLen + 1);
+    int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
 
-    printf("{\"sent\":\"device\",\"id\":%u,\"state\":%u}\n", deviceId, state);
+    printf("{\"sent\":\"device\",\"id\":%u,\"state\":%u,\"tx_code\":%d}\n", deviceId, state, txState);
     fflush(stdout);
 }
 
@@ -295,11 +295,11 @@ void sendFanCommand(uint8_t mode, uint8_t duty) {
     size_t payloadLen = sizeof(hdr) + sizeof(cmd);
     buf[payloadLen] = crc8(buf, payloadLen);
 
-    radio.transmit(buf, payloadLen + 1);
+    int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
 
-    printf("{\"sent\":\"fan\",\"mode\":%u,\"duty\":%u}\n", mode, duty);
+    printf("{\"sent\":\"fan\",\"mode\":%u,\"duty\":%u,\"tx_code\":%d}\n", mode, duty, txState);
     fflush(stdout);
 }
 
@@ -311,11 +311,11 @@ void sendStatusRequest() {
     size_t payloadLen = sizeof(hdr);
     buf[payloadLen] = crc8(buf, payloadLen);
 
-    radio.transmit(buf, payloadLen + 1);
+    int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
 
-    printf("{\"sent\":\"status_request\"}\n");
+    printf("{\"sent\":\"status_request\",\"tx_code\":%d}\n", txState);
     fflush(stdout);
 }
 
@@ -329,11 +329,11 @@ void sendRtcCommand(uint32_t epoch) {
     size_t payloadLen = sizeof(hdr) + sizeof(cmd);
     buf[payloadLen] = crc8(buf, payloadLen);
 
-    radio.transmit(buf, payloadLen + 1);
+    int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
 
-    printf("{\"sent\":\"rtc\",\"epoch\":%lu}\n", (unsigned long)epoch);
+    printf("{\"sent\":\"rtc\",\"epoch\":%lu,\"tx_code\":%d}\n", (unsigned long)epoch, txState);
     fflush(stdout);
 }
 
