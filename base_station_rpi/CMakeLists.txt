@@ -26,6 +26,6 @@ target_include_directories(base_station_rpi PRIVATE
 file(GLOB_RECURSE RADIOLIB_SOURCES "${radiolib_SOURCE_DIR}/src/*.cpp")
 add_library(radiolib_lib STATIC ${RADIOLIB_SOURCES})
 target_include_directories(radiolib_lib PUBLIC ${radiolib_SOURCE_DIR}/src)
-target_compile_definitions(radiolib_lib PUBLIC RADIOLIB_PLATFORM=1)
+target_compile_definitions(radiolib_lib PUBLIC)
 
 target_link_libraries(base_station_rpi PRIVATE radiolib_lib lgpio)
