@@ -7,13 +7,6 @@
 // include the library for Raspberry GPIO pins
 #include <lgpio.h>
 
-// direct spidev access (bypass lgpio SPI to support SPI_NO_CS)
-#include <cerrno>
-#include <cstring>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
 
 #define PI_RISING         (LG_RISING_EDGE)
 #define PI_FALLING        (LG_FALLING_EDGE)
@@ -200,58 +193,28 @@ class PiHal : public RadioLibHal {
     }
 
     void spiBegin() {
-      if(_spiFd >= 0) {
-        return;
-      }
-
-      // Open spidev directly with SPI_NO_CS so only RadioLib's manual
-      // GPIO CS (pin 24) is used — matches pymc_core's spidev config.
-      char devPath[32];
-      snprintf(devPath, sizeof(devPath), "/dev/spidev%d.%d", _spiDevice, _spiChannel);
-      _spiFd = open(devPath, O_RDWR);
-      if(_spiFd < 0) {
-        fprintf(stderr, "Could not open SPI device %s: %s\n", devPath, strerror(errno));
-        return;
-      }
-
-      uint32_t mode32 = SPI_MODE_0 | SPI_NO_CS;
-      if(ioctl(_spiFd, SPI_IOC_WR_MODE32, &mode32) < 0) {
-        fprintf(stderr, "Could not set SPI mode: %s\n", strerror(errno));
-      }
-
-      uint32_t speed = _spiSpeed;
-      if(ioctl(_spiFd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0) {
-        fprintf(stderr, "Could not set SPI speed: %s\n", strerror(errno));
-      }
-
-      uint8_t bits = 8;
-      if(ioctl(_spiFd, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0) {
-        fprintf(stderr, "Could not set SPI bits per word: %s\n", strerror(errno));
+      if(_spiHandle < 0) {
+        if((_spiHandle = lgSpiOpen(_spiDevice, _spiChannel, _spiSpeed, 0)) < 0) {
+          fprintf(stderr, "Could not open SPI handle on 0: %s\n", lguErrorText(_spiHandle));
+        }
       }
     }
 
     void spiBeginTransaction() {}
 
     void spiTransfer(uint8_t* out, size_t len, uint8_t* in) {
-      struct spi_ioc_transfer tr = {};
-      tr.tx_buf = (uintptr_t)out;
-      tr.rx_buf = (uintptr_t)in;
-      tr.len = len;
-      tr.speed_hz = _spiSpeed;
-      tr.bits_per_word = 8;
-
-      int result = ioctl(_spiFd, SPI_IOC_MESSAGE(1), &tr);
+      int result = lgSpiXfer(_spiHandle, (char *)out, (char*)in, len);
       if(result < 0) {
-        fprintf(stderr, "Could not perform SPI transfer: %s\n", strerror(errno));
+        fprintf(stderr, "Could not perform SPI transfer: %s\n", lguErrorText(result));
       }
     }
 
     void spiEndTransaction() {}
 
     void spiEnd() {
-      if(_spiFd >= 0) {
-        close(_spiFd);
-        _spiFd = -1;
+      if(_spiHandle >= 0) {
+        lgSpiClose(_spiHandle);
+        _spiHandle = -1;
       }
     }
 
@@ -284,7 +247,7 @@ class PiHal : public RadioLibHal {
     const unsigned int _spiSpeed;
     const uint8_t _spiChannel;
     int _gpioHandle = -1;
-    int _spiFd = -1;
+    int _spiHandle = -1;
 
     int pinFlags[PI_MAX_USER_GPIO + 1] = { 0 };
 };
