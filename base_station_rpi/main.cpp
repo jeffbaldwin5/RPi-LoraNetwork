@@ -86,21 +86,28 @@ static bool findJsonInt(const char* json, const char* key, int* out) {
 // LoRa
 // ============================================================
 void initLoRa() {
-    int state = radio.begin(LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING,
-                            LORA_CODING_RATE, LORA_SYNC_WORD, RPI_TX_POWER);
+    // Initial begin() to get SPI/registers up, then enable TCXO,
+    // then begin() again so image calibration uses the TCXO reference.
+    int state = radio.begin();
     if (state != RADIOLIB_ERR_NONE) {
-        fprintf(stderr, "{\"error\":\"LoRa init failed, code %d\"}\n", state);
+        fprintf(stderr, "{\"error\":\"LoRa pre-init failed, code %d\"}\n", state);
         exit(1);
     }
 
-    // Enable DIO3 TCXO on Zebra HAT
     state = radio.setTCXO(1.6);
     if (state != RADIOLIB_ERR_NONE) {
         fprintf(stderr, "{\"error\":\"TCXO setup failed, code %d\"}\n", state);
         exit(1);
     }
 
-    // Set preamble length for Zebra HAT
+    // Re-init with actual RF parameters now that TCXO is active
+    state = radio.begin(LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING,
+                        LORA_CODING_RATE, LORA_SYNC_WORD, RPI_TX_POWER);
+    if (state != RADIOLIB_ERR_NONE) {
+        fprintf(stderr, "{\"error\":\"LoRa init failed, code %d\"}\n", state);
+        exit(1);
+    }
+
     state = radio.setPreambleLength(RPI_PREAMBLE_LEN);
     if (state != RADIOLIB_ERR_NONE) {
         fprintf(stderr, "{\"error\":\"setPreambleLength failed, code %d\"}\n", state);
