@@ -20,7 +20,8 @@
 #define RPI_PREAMBLE_LEN 17      // Zebra HAT preamble
 
 // --- HAL & Radio ---
-PiHal* hal = new PiHal(RPI_SPI_CHANNEL, RPI_SPI_DEVICE);
+// PiHal(spiChannel, spiSpeed, spiDevice, gpioDevice)
+PiHal* hal = new PiHal(RPI_SPI_CHANNEL, 2000000, RPI_SPI_DEVICE);
 SX1262 radio = new Module(hal, RPI_CS_GPIO, RPI_DIO1_GPIO, RPI_RST_GPIO, RPI_BUSY_GPIO);
 
 // --- State ---
