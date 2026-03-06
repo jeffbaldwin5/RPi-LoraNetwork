@@ -312,6 +312,7 @@ void sendFanCommand(uint8_t mode, uint8_t duty) {
     size_t payloadLen = sizeof(hdr) + sizeof(cmd);
     buf[payloadLen] = crc8(buf, payloadLen);
 
+    hexDump("tx_fan", buf, payloadLen + 1);
     int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
@@ -328,6 +329,7 @@ void sendStatusRequest() {
     size_t payloadLen = sizeof(hdr);
     buf[payloadLen] = crc8(buf, payloadLen);
 
+    hexDump("tx_status", buf, payloadLen + 1);
     int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
@@ -346,6 +348,7 @@ void sendRtcCommand(uint32_t epoch) {
     size_t payloadLen = sizeof(hdr) + sizeof(cmd);
     buf[payloadLen] = crc8(buf, payloadLen);
 
+    hexDump("tx_rtc", buf, payloadLen + 1);
     int txState = radio.transmit(buf, payloadLen + 1);
     rxFlag = false;
     radio.startReceive();
