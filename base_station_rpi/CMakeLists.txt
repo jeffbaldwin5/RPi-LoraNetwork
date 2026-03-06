@@ -7,7 +7,7 @@ include(FetchContent)
 FetchContent_Declare(
     RadioLib
     GIT_REPOSITORY https://github.com/jgromes/RadioLib.git
-    GIT_TAG        master
+    GIT_TAG        7.6.0
 )
 # Only download sources — don't process RadioLib's own CMakeLists
 # (it assumes Arduino by default)
