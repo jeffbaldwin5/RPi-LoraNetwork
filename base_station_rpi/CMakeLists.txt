@@ -9,7 +9,12 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/jgromes/RadioLib.git
     GIT_TAG        master
 )
-FetchContent_MakeAvailable(RadioLib)
+# Only download sources — don't process RadioLib's own CMakeLists
+# (it assumes Arduino by default)
+FetchContent_GetProperties(RadioLib)
+if(NOT radiolib_POPULATED)
+    FetchContent_Populate(RadioLib)
+endif()
 
 add_executable(base_station_rpi main.cpp)
 
