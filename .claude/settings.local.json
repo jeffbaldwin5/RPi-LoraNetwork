@@ -26,7 +26,8 @@
       "Bash(pip show pymc-core)",
       "Read(//d//**)",
       "Bash(pip3 show:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(ls:*)"
     ]
   }
 }
