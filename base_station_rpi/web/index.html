@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRa Base Station</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+  header h1 { font-size: 1.3em; font-weight: 600; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--red);
+    display: inline-block;
+    margin-right: 8px;
+    transition: background 0.3s;
+  }
+  .status-dot.connected { background: var(--green); }
+  .status-label { font-size: 0.85em; color: var(--dim); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+  .card.flash { border-color: var(--accent); }
+  .card-label {
+    font-size: 0.7em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    margin-bottom: 8px;
+  }
+  .card-value {
+    font-size: 1.8em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .card-unit {
+    font-size: 0.5em;
+    color: var(--dim);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+
+  .signal-good { color: var(--green); }
+  .signal-ok { color: var(--orange); }
+  .signal-bad { color: var(--red); }
+
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    margin-bottom: 12px;
+  }
+
+  .device-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .device-label {
+    min-width: 80px;
+    font-size: 0.9em;
+  }
+  .device-state {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--red);
+    flex-shrink: 0;
+  }
+  .device-state.on { background: var(--green); }
+
+  button {
+    background: var(--border);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8em;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: #30363d; border-color: var(--accent); }
+  button:active { background: var(--accent); color: #000; }
+  button.on-btn:hover { border-color: var(--green); }
+  button.off-btn:hover { border-color: var(--red); }
+  button.rst-btn:hover { border-color: var(--orange); }
+  button.primary {
+    background: #1f6feb;
+    border-color: #1f6feb;
+  }
+  button.primary:hover { background: #388bfd; }
+
+  .fan-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .fan-row input[type=range] {
+    flex: 1;
+    min-width: 120px;
+    accent-color: var(--accent);
+  }
+  .fan-duty-label {
+    min-width: 40px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .actions-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  #log {
+    background: #010409;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.75em;
+    line-height: 1.6;
+  }
+  .log-rx { color: var(--green); }
+  .log-tx { color: var(--accent); }
+  .log-err { color: var(--red); }
+  .log-info { color: var(--dim); }
+  .log-prefix { color: var(--dim); user-select: none; }
+
+  .last-update {
+    font-size: 0.75em;
+    color: var(--dim);
+    text-align: right;
+    margin-top: 4px;
+  }
+
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .card-value { font-size: 1.4em; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LoRa Base Station</h1>
+  <div style="display:flex;align-items:center;">
+    <span class="status-dot" id="statusDot"></span>
+    <span class="status-label" id="statusLabel">Disconnected</span>
+  </div>
+</header>
+
+<div class="grid" id="telemetry">
+  <div class="card" id="c-voltage">
+    <div class="card-label">Voltage</div>
+    <div class="card-value">--<span class="card-unit">V</span></div>
+  </div>
+  <div class="card" id="c-current">
+    <div class="card-label">Current</div>
+    <div class="card-value">--<span class="card-unit">mA</span></div>
+  </div>
+  <div class="card" id="c-temp">
+    <div class="card-label">Temperature</div>
+    <div class="card-value">--<span class="card-unit">&deg;F</span></div>
+  </div>
+  <div class="card" id="c-humidity">
+    <div class="card-label">Humidity</div>
+    <div class="card-value">--<span class="card-unit">%</span></div>
+  </div>
+  <div class="card" id="c-lux">
+    <div class="card-label">Light</div>
+    <div class="card-value">--<span class="card-unit">lux</span></div>
+  </div>
+  <div class="card" id="c-vbat">
+    <div class="card-label">VBAT</div>
+    <div class="card-value">--<span class="card-unit">V</span></div>
+  </div>
+  <div class="card" id="c-fan">
+    <div class="card-label">Fan</div>
+    <div class="card-value">--<span class="card-unit">%</span></div>
+  </div>
+  <div class="card" id="c-rssi">
+    <div class="card-label">RSSI</div>
+    <div class="card-value">--<span class="card-unit">dBm</span></div>
+  </div>
+  <div class="card" id="c-snr">
+    <div class="card-label">SNR</div>
+    <div class="card-value">--<span class="card-unit">dB</span></div>
+  </div>
+</div>
+<div class="last-update" id="lastUpdate">No data yet</div>
+
+<div class="section">
+  <div class="section-title">Devices</div>
+  <div class="device-row">
+    <div class="device-state" id="dev0-state"></div>
+    <span class="device-label">Device 0</span>
+    <button class="on-btn" onclick="sendDev(0,'on')">On</button>
+    <button class="off-btn" onclick="sendDev(0,'off')">Off</button>
+    <button class="rst-btn" onclick="sendDev(0,'reset')">Reset</button>
+  </div>
+  <div class="device-row">
+    <div class="device-state" id="dev1-state"></div>
+    <span class="device-label">Device 1</span>
+    <button class="on-btn" onclick="sendDev(1,'on')">On</button>
+    <button class="off-btn" onclick="sendDev(1,'off')">Off</button>
+    <button class="rst-btn" onclick="sendDev(1,'reset')">Reset</button>
+  </div>
+  <div class="device-row">
+    <div class="device-state" id="dev2-state"></div>
+    <span class="device-label">Device 2</span>
+    <button class="on-btn" onclick="sendDev(2,'on')">On</button>
+    <button class="off-btn" onclick="sendDev(2,'off')">Off</button>
+    <button class="rst-btn" onclick="sendDev(2,'reset')">Reset</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Fan Control</div>
+  <div class="fan-row">
+    <button class="primary" onclick="sendFan('auto')">Auto</button>
+    <button onclick="sendFanManual()">Manual</button>
+    <input type="range" id="fanSlider" min="0" max="100" value="50"
+           oninput="document.getElementById('fanDutyLabel').textContent=this.value+'%'">
+    <span class="fan-duty-label" id="fanDutyLabel">50%</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Actions</div>
+  <div class="actions-row">
+    <button class="primary" onclick="sendCmd({cmd:'status'})">Request Status</button>
+    <button onclick="sendRtc()">Sync RTC to Browser Time</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Message Log</div>
+  <div id="log"></div>
+</div>
+
+<script>
+let ws;
+let reconnectDelay = 1000;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('statusDot').classList.add('connected');
+    document.getElementById('statusLabel').textContent = 'Connected';
+    reconnectDelay = 1000;
+  };
+
+  ws.onclose = () => {
+    document.getElementById('statusDot').classList.remove('connected');
+    document.getElementById('statusLabel').textContent = 'Reconnecting...';
+    setTimeout(connect, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 1.5, 10000);
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      handleMessage(msg);
+    } catch (err) {}
+  };
+}
+
+function handleMessage(msg) {
+  // Telemetry update
+  if (msg.voltage_V !== undefined) {
+    updateCard('c-voltage', msg.voltage_V.toFixed(3), 'V');
+    updateCard('c-current', msg.current_mA, 'mA');
+    updateCard('c-temp', msg.temp_F.toFixed(1), '\u00b0F');
+    updateCard('c-fan', msg.fan_pct, '%');
+    updateCard('c-rssi', msg.rssi.toFixed(1), 'dBm', rssiClass(msg.rssi));
+    updateCard('c-snr', msg.snr.toFixed(1), 'dB', snrClass(msg.snr));
+
+    // Device states
+    if (msg.devices) {
+      for (let i = 0; i < 3; i++) {
+        const el = document.getElementById(`dev${i}-state`);
+        el.classList.toggle('on', msg.devices[i] === 1);
+      }
+    }
+
+    // Extended telemetry fields
+    if (msg.humidity !== undefined) {
+      updateCard('c-humidity', msg.humidity.toFixed(1), '%');
+      updateCard('c-lux', msg.lux, 'lux');
+      updateCard('c-vbat', (msg.vbat_mV / 1000).toFixed(3), 'V');
+    }
+
+    document.getElementById('lastUpdate').textContent =
+      'Last update: ' + new Date().toLocaleTimeString();
+  }
+
+  logMessage(msg);
+}
+
+function updateCard(id, value, unit, extraClass) {
+  const card = document.getElementById(id);
+  const valEl = card.querySelector('.card-value');
+  valEl.innerHTML = `${value}<span class="card-unit">${unit}</span>`;
+  if (extraClass) {
+    valEl.className = 'card-value ' + extraClass;
+  } else {
+    valEl.className = 'card-value';
+  }
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 400);
+}
+
+function rssiClass(v) { return v > -80 ? 'signal-good' : v > -100 ? 'signal-ok' : 'signal-bad'; }
+function snrClass(v) { return v > 5 ? 'signal-good' : v > 0 ? 'signal-ok' : 'signal-bad'; }
+
+function logMessage(msg) {
+  const log = document.getElementById('log');
+  const div = document.createElement('div');
+  const dir = msg._dir || 'rx';
+  const clean = Object.assign({}, msg);
+  delete clean._dir;
+  delete clean._stderr;
+
+  let cls = 'log-rx';
+  let prefix = '<<';
+  if (dir === 'tx') { cls = 'log-tx'; prefix = '>>'; }
+  if (msg._stderr || msg.error) cls = 'log-err';
+  if (msg.status) cls = 'log-info';
+
+  const time = new Date().toLocaleTimeString();
+  div.innerHTML = `<span class="log-prefix">${time} ${prefix} </span><span class="${cls}">${JSON.stringify(clean)}</span>`;
+  log.appendChild(div);
+
+  // Auto-scroll if near bottom
+  if (log.scrollHeight - log.scrollTop - log.clientHeight < 80) {
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // Limit log entries
+  while (log.children.length > 200) {
+    log.removeChild(log.firstChild);
+  }
+}
+
+function sendCmd(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+  }
+}
+
+function sendDev(id, state) {
+  sendCmd({ cmd: 'device', id: id, state: state });
+}
+
+function sendFan(mode) {
+  sendCmd({ cmd: 'fan', mode: mode });
+}
+
+function sendFanManual() {
+  const duty = parseInt(document.getElementById('fanSlider').value);
+  sendCmd({ cmd: 'fan', mode: 'manual', duty: duty });
+}
+
+function sendRtc() {
+  const epoch = Math.floor(Date.now() / 1000);
+  sendCmd({ cmd: 'rtc', epoch: epoch });
+}
+
+connect();
+</script>
+</body>
+</html>

@@ -16,7 +16,7 @@
 #define RPI_DIO1_GPIO    22
 #define RPI_RST_GPIO     17
 #define RPI_BUSY_GPIO    27
-#define RPI_TX_POWER     18      // dBm (Zebra HAT)
+#define RPI_TX_POWER     0       // dBm (Zebra HAT, low power for close range)
 #define RPI_PREAMBLE_LEN 17      // Zebra HAT preamble
 
 // --- HAL & Radio ---
