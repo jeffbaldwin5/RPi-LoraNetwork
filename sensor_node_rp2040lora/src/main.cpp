@@ -134,9 +134,9 @@ void setup() {
     setAntennaRx();
 
     initDeviceGPIO();
-    initSensors();
     initFan();
     initLoRa();
+    initSensors();  // after LoRa init — SPI1.begin() can steal GP10 (SPI1_SCK default)
 
     // Send initial telemetry immediately
     Serial.println(F("Sensor Online"));
@@ -374,6 +374,7 @@ void initSensors() {
     // Enable logger hat sensors via GP10
     pinMode(PIN_SENSOR_EN, OUTPUT);
     digitalWrite(PIN_SENSOR_EN, HIGH);
+    Serial.printf("GP10 set HIGH, read back: %d\n", digitalRead(PIN_SENSOR_EN));
     delay(250);  // let sensors power up (BH1750 needs ~180ms)
 
     Wire.setSDA(PIN_SDA);

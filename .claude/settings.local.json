@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:www.waveshare.com)",
+      "WebFetch(domain:arduino-pico.readthedocs.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:manuals.plus)",
+      "WebFetch(domain:community.platformio.org)",
+      "WebFetch(domain:nwgat.ninja)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.platformio.org)",
+      "WebFetch(domain:circuitpython.org)",
+      "WebFetch(domain:m.media-amazon.com)",
+      "Bash(pio run:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(xargs grep:*)",
+      "WebFetch(domain:learn.adafruit.com)",
+      "Bash(pio pkg:*)",
+      "WebFetch(domain:registry.platformio.org)",
+      "WebFetch(domain:www.seeedstudio.com)",
+      "WebFetch(domain:docs.rakwireless.com)"
+    ]
+  }
+}
