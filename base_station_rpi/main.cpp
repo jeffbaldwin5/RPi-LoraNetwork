@@ -86,31 +86,14 @@ static bool findJsonInt(const char* json, const char* key, int* out) {
 // LoRa
 // ============================================================
 void initLoRa() {
-    // Initial begin() to get SPI/registers up, then enable TCXO,
-    // then begin() again so image calibration uses the TCXO reference.
-    int state = radio.begin();
-    if (state != RADIOLIB_ERR_NONE) {
-        fprintf(stderr, "{\"error\":\"LoRa pre-init failed, code %d\"}\n", state);
-        exit(1);
-    }
-
-    state = radio.setTCXO(1.6);
-    if (state != RADIOLIB_ERR_NONE) {
-        fprintf(stderr, "{\"error\":\"TCXO setup failed, code %d\"}\n", state);
-        exit(1);
-    }
-
-    // Re-init with actual RF parameters now that TCXO is active
-    state = radio.begin(LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING,
-                        LORA_CODING_RATE, LORA_SYNC_WORD, RPI_TX_POWER);
+    // Zebra HAT: pass TCXO voltage (1.6V) directly to begin() so modSetup()
+    // enables the TCXO before calibration.  begin() signature:
+    //   begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage)
+    int state = radio.begin(LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING,
+                            LORA_CODING_RATE, LORA_SYNC_WORD, RPI_TX_POWER,
+                            RPI_PREAMBLE_LEN, 1.6);
     if (state != RADIOLIB_ERR_NONE) {
         fprintf(stderr, "{\"error\":\"LoRa init failed, code %d\"}\n", state);
-        exit(1);
-    }
-
-    state = radio.setPreambleLength(RPI_PREAMBLE_LEN);
-    if (state != RADIOLIB_ERR_NONE) {
-        fprintf(stderr, "{\"error\":\"setPreambleLength failed, code %d\"}\n", state);
         exit(1);
     }
 

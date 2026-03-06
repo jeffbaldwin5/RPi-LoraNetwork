@@ -22,7 +22,10 @@
       "Bash(pio pkg:*)",
       "WebFetch(domain:registry.platformio.org)",
       "WebFetch(domain:www.seeedstudio.com)",
-      "WebFetch(domain:docs.rakwireless.com)"
+      "WebFetch(domain:docs.rakwireless.com)",
+      "Bash(pip show pymc-core)",
+      "Read(//d//**)",
+      "Bash(pip3 show:*)"
     ]
   }
 }
