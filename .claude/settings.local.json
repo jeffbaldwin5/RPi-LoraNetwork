@@ -25,7 +25,8 @@
       "WebFetch(domain:docs.rakwireless.com)",
       "Bash(pip show pymc-core)",
       "Read(//d//**)",
-      "Bash(pip3 show:*)"
+      "Bash(pip3 show:*)",
+      "Bash(mkdir:*)"
     ]
   }
 }
