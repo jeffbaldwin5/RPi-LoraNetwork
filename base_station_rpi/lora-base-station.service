@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /home/jbaldwin/RPi-LoraNetwork/base_station_rpi/web/server.py
+ExecStart=/home/jbaldwin/RPi-LoraNetwork/base_station_rpi/web/venv/bin/python /home/jbaldwin/RPi-LoraNetwork/base_station_rpi/web/server.py
 WorkingDirectory=/home/jbaldwin/RPi-LoraNetwork/base_station_rpi
 Restart=on-failure
 RestartSec=5
