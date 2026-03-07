@@ -3,6 +3,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
 
 #include <RadioLib.h>
 #include <hal/RPi/PiHal.h>
@@ -337,11 +338,15 @@ void sendStatusRequest() {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     hexDump("tx_status", buf, payloadLen + 1);
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     int txState = radio.transmit(buf, payloadLen + 1);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    long tx_ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000;
     rxFlag = false;
     radio.startReceive();
 
-    printf("{\"sent\":\"status_request\",\"tx_code\":%d}\n", txState);
+    printf("{\"sent\":\"status_request\",\"tx_code\":%d,\"tx_time_ms\":%ld}\n", txState, tx_ms);
     fflush(stdout);
 }
 
