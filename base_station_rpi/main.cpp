@@ -17,7 +17,7 @@
 #define RPI_DIO1_GPIO    22
 #define RPI_RST_GPIO     17
 #define RPI_BUSY_GPIO    27
-#define RPI_TX_POWER     22      // dBm (Zebra HAT 1W, use datasheet PA defaults)
+#define RPI_TX_POWER     18      // dBm (Zebra HAT 1W, matches pymc config)
 #define RPI_PREAMBLE_LEN 17      // Zebra HAT preamble
 
 // --- HAL & Radio ---
@@ -105,10 +105,24 @@ void initLoRa() {
         fprintf(stderr, "{\"error\":\"setOutputPower failed, code %d\"}\n", state);
     }
 
-    // Print radio config for debugging
-    printf("{\"init_ok\":true,\"freq_MHz\":%.1f,\"bw_kHz\":%.1f,\"sf\":%d,\"cr\":%d,"
+    // Read back key registers to verify radio config
+    uint8_t syncMSB = radio.mod->SPIreadRegister(0x0740);
+    uint8_t syncLSB = radio.mod->SPIreadRegister(0x0741);
+    // Frequency is stored as 32-bit value at 0x088B
+    uint8_t freq3 = radio.mod->SPIreadRegister(0x088B);
+    uint8_t freq2 = radio.mod->SPIreadRegister(0x088C);
+    uint8_t freq1 = radio.mod->SPIreadRegister(0x088D);
+    uint8_t freq0 = radio.mod->SPIreadRegister(0x088E);
+    uint32_t freqReg = ((uint32_t)freq3 << 24) | ((uint32_t)freq2 << 16) |
+                       ((uint32_t)freq1 << 8) | freq0;
+    double actualFreq = (double)freqReg * 32.0 / (1 << 25);
+
+    printf("{\"init_ok\":true,\"freq_MHz\":%.4f,\"freq_reg\":\"0x%08X\","
+           "\"sync_reg\":\"0x%02X%02X\","
+           "\"bw_kHz\":%.1f,\"sf\":%d,\"cr\":%d,"
            "\"sync\":\"0x%02X\",\"pwr_dBm\":%d,\"preamble\":%d,\"tcxo_V\":%.1f}\n",
-           LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SPREADING, LORA_CODING_RATE,
+           actualFreq, freqReg, syncMSB, syncLSB,
+           LORA_BANDWIDTH, LORA_SPREADING, LORA_CODING_RATE,
            LORA_SYNC_WORD, RPI_TX_POWER, RPI_PREAMBLE_LEN, 1.6);
     fflush(stdout);
 
@@ -338,15 +352,84 @@ void sendStatusRequest() {
     buf[payloadLen] = crc8(buf, payloadLen);
 
     hexDump("tx_status", buf, payloadLen + 1);
+
+    // --- Pre-TX register dump ---
+    uint8_t syncMSB = radio.mod->SPIreadRegister(0x0740);
+    uint8_t syncLSB = radio.mod->SPIreadRegister(0x0741);
+    uint8_t freq3 = radio.mod->SPIreadRegister(0x088B);
+    uint8_t freq2 = radio.mod->SPIreadRegister(0x088C);
+    uint8_t freq1 = radio.mod->SPIreadRegister(0x088D);
+    uint8_t freq0 = radio.mod->SPIreadRegister(0x088E);
+    uint32_t freqReg = ((uint32_t)freq3 << 24) | ((uint32_t)freq2 << 16) |
+                       ((uint32_t)freq1 << 8) | freq0;
+    double actualFreq = (double)freqReg * 32.0 / (1 << 25);
+    printf("{\"pre_tx_regs\":{\"sync\":\"0x%02X%02X\",\"freq_MHz\":%.4f}}\n",
+           syncMSB, syncLSB, actualFreq);
+    fflush(stdout);
+
+    // --- Manual transmit with buffer readback ---
+    // Step 1: standby
+    radio.standby();
+
+    // Step 2: write buffer via RadioLib internals (GODMODE)
+    // Set packet params (length)
+    radio.setPacketParams(RPI_PREAMBLE_LEN, RADIOLIB_SX126X_LORA_CRC_ON,
+                          payloadLen + 1, RADIOLIB_SX126X_LORA_HEADER_EXPLICIT, false);
+
+    // Set DIO IRQ for TX_DONE on DIO1
+    radio.setDioIrqParams(RADIOLIB_SX126X_IRQ_TX_DONE | RADIOLIB_SX126X_IRQ_TIMEOUT,
+                          RADIOLIB_SX126X_IRQ_TX_DONE);
+
+    // Set buffer base address
+    radio.setBufferBaseAddress();
+
+    // Write data to radio buffer
+    radio.writeBuffer(buf, payloadLen + 1);
+
+    // Step 3: Read back buffer to verify
+    uint8_t readback[MAX_PACKET_SIZE] = {0};
+    radio.readBuffer(readback, payloadLen + 1);
+    hexDump("tx_readback", readback, payloadLen + 1);
+
+    // Verify match
+    bool match = (memcmp(buf, readback, payloadLen + 1) == 0);
+    printf("{\"buffer_match\":%s}\n", match ? "true" : "false");
+    fflush(stdout);
+
+    // Step 4: clear IRQ and transmit
+    radio.clearIrqStatus();
+
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    int txState = radio.transmit(buf, payloadLen + 1);
+
+    // Set TX mode
+    radio.setTx(RADIOLIB_SX126X_TX_TIMEOUT_NONE);
+
+    // Wait for TX_DONE (poll IRQ flags)
+    uint32_t start = hal->millis();
+    uint32_t irq = 0;
+    while (!(irq & RADIOLIB_SX126X_IRQ_TX_DONE)) {
+        irq = radio.getIrqFlags();
+        if (hal->millis() - start > 10000) {
+            printf("{\"error\":\"TX timeout after 10s\",\"irq\":\"0x%08X\"}\n", irq);
+            fflush(stdout);
+            break;
+        }
+        hal->delay(1);
+    }
+
     clock_gettime(CLOCK_MONOTONIC, &t1);
     long tx_ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_nsec - t0.tv_nsec) / 1000000;
+
+    // Read IRQ status after TX
+    uint32_t finalIrq = radio.getIrqFlags();
+    radio.clearIrqStatus();
+
     rxFlag = false;
     radio.startReceive();
 
-    printf("{\"sent\":\"status_request\",\"tx_code\":%d,\"tx_time_ms\":%ld}\n", txState, tx_ms);
+    printf("{\"sent\":\"status_request\",\"tx_done\":%s,\"irq\":\"0x%08X\",\"tx_time_ms\":%ld}\n",
+           (finalIrq & RADIOLIB_SX126X_IRQ_TX_DONE) ? "true" : "false", finalIrq, tx_ms);
     fflush(stdout);
 }
 

@@ -15,10 +15,11 @@ file(GLOB_RECURSE RADIOLIB_SOURCES "${RADIOLIB_DIR}/*.cpp")
 add_library(radiolib_lib STATIC ${RADIOLIB_SOURCES})
 target_include_directories(radiolib_lib PUBLIC ${RADIOLIB_DIR})
 
-# Enable RadioLib basic debug (output goes to stderr via RADIOLIB_DEBUG_PORT)
+# Enable RadioLib basic debug and GODMODE for register access
 target_compile_definitions(radiolib_lib PUBLIC
     RADIOLIB_DEBUG_BASIC=1
     RADIOLIB_DEBUG_PORT=stderr
+    RADIOLIB_GODMODE=1
 )
 
 target_link_libraries(base_station_rpi PRIVATE radiolib_lib lgpio)
