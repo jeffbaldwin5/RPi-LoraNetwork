@@ -16,8 +16,8 @@
 #define RPI_DIO1_GPIO    22
 #define RPI_RST_GPIO     17
 #define RPI_BUSY_GPIO    27
-#define RPI_TX_POWER     0       // dBm (match Pico base station for debugging)
-#define RPI_PREAMBLE_LEN 8       // match Pico base station default
+#define RPI_TX_POWER     22      // dBm (Zebra HAT 1W, use datasheet PA defaults)
+#define RPI_PREAMBLE_LEN 17      // Zebra HAT preamble
 
 // --- HAL & Radio ---
 // PiHal(spiChannel, spiSpeed, spiDevice, gpioDevice)
@@ -95,6 +95,13 @@ void initLoRa() {
     if (state != RADIOLIB_ERR_NONE) {
         fprintf(stderr, "{\"error\":\"LoRa init failed, code %d\"}\n", state);
         exit(1);
+    }
+
+    // Override PA config: use datasheet defaults (paDutyCycle=4, hpMax=7)
+    // instead of RadioLib's optimized table — required for Zebra HAT external PA
+    state = radio.setOutputPower(RPI_TX_POWER, false);
+    if (state != RADIOLIB_ERR_NONE) {
+        fprintf(stderr, "{\"error\":\"setOutputPower failed, code %d\"}\n", state);
     }
 
     // Print radio config for debugging
